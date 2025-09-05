@@ -6,8 +6,15 @@
   "scripts": {
     "demo": "node demo-service-communication.js",
     "demo-complete": "node demo-complete-ecommerce-flow.js",
-    "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\" \"cd apps/order-service && npm start\"",
-    "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test && cd ../order-service && npm test"
+    "demo-platform": "node demo-complete-platform.js",
+    "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\" \"cd apps/order-service && npm start\" \"cd apps/notification-service && npm start\"",
+    "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test && cd ../order-service && npm test && cd ../notification-service && npm test",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "docker:clean": "docker-compose down -v && docker system prune -f"
   },
   "keywords": ["microservices", "ecommerce", "devops", "demo"],
   "author": "DevOps Learning Project",
