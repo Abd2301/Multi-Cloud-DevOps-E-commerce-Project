@@ -5,8 +5,9 @@
   "main": "demo-service-communication.js",
   "scripts": {
     "demo": "node demo-service-communication.js",
-    "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\"",
-    "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test"
+    "demo-complete": "node demo-complete-ecommerce-flow.js",
+    "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\" \"cd apps/order-service && npm start\"",
+    "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test && cd ../order-service && npm test"
   },
   "keywords": ["microservices", "ecommerce", "devops", "demo"],
   "author": "DevOps Learning Project",
