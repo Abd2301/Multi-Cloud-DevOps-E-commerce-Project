@@ -1,0 +1,20 @@
+{
+  "name": "ecommerce-multicloud-demo",
+  "version": "1.0.0",
+  "description": "Multi-Cloud Microservices E-commerce Platform Demo",
+  "main": "demo-service-communication.js",
+  "scripts": {
+    "demo": "node demo-service-communication.js",
+    "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\"",
+    "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test"
+  },
+  "keywords": ["microservices", "ecommerce", "devops", "demo"],
+  "author": "DevOps Learning Project",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
