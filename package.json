@@ -4,9 +4,10 @@
   "description": "Multi-Cloud Microservices E-commerce Platform Demo",
   "main": "demo-service-communication.js",
   "scripts": {
-    "demo": "node demo-service-communication.js",
-    "demo-complete": "node demo-complete-ecommerce-flow.js",
-    "demo-platform": "node demo-complete-platform.js",
+    "demo": "node scripts/testing/demo-service-communication.js",
+    "demo-complete": "node scripts/testing/demo-complete-ecommerce-flow.js",
+    "demo-platform": "node scripts/testing/demo-complete-platform.js",
+    "test-notifications": "node scripts/testing/test-notifications.js",
     "start-services": "concurrently \"cd apps/user-service && npm start\" \"cd apps/product-service && npm start\" \"cd apps/order-service && npm start\" \"cd apps/notification-service && npm start\"",
     "test-all": "cd apps/user-service && npm test && cd ../product-service && npm test && cd ../order-service && npm test && cd ../notification-service && npm test",
     "docker:build": "docker-compose build",

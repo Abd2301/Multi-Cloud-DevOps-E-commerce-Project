@@ -202,6 +202,16 @@ Thumbs.db
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+*.tfplan
+*.tfplan.*
+*.auto.tfvars
+*.auto.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.tfrc
+terraform.rc
 
 # Minikube and other large binaries
 minikube*
