@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
       - name: notification-service
-        image: multi-cloud-devops-e-commerce-project_notification-service:latest
-        imagePullPolicy: Never  # Use local image for development
+        image: 043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/notification-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3004
         env:

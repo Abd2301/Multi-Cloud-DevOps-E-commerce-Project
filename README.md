@@ -48,6 +48,28 @@ cd Multi-Cloud-DevOps-E-commerce-Project
 npm install
 ```
 
+## 💰 **Cost Management**
+
+### **Destroy Resources to Save Money**
+```bash
+# Destroy Azure resources
+./scripts/destroy-azure.sh
+
+# Destroy AWS resources  
+./scripts/destroy-aws.sh
+```
+
+### **Redeploy When Needed**
+```bash
+# Redeploy Azure resources
+./scripts/redeploy-azure.sh
+
+# Redeploy AWS resources
+./scripts/redeploy-aws.sh
+```
+
+**💡 Pro Tip**: Destroy resources when not in use to save money. Your code and configurations are safe in Git!
+
 ### **2. Run Locally**
 ```bash
 # Start all services
@@ -84,10 +106,16 @@ kubectl get pods
 ### **5. Deploy to Cloud**
 ```bash
 # Deploy to Azure
-npm run terraform:apply:azure
+cd infrastructure/azure
+terraform init
+terraform plan
+terraform apply
 
 # Deploy to AWS
-npm run terraform:apply:aws
+cd infrastructure/aws
+terraform init
+terraform plan
+terraform apply
 ```
 
 ## 📁 **Project Structure**
@@ -208,20 +236,26 @@ kubectl apply -f kubernetes/
 
 ### **4. Azure Cloud**
 ```bash
-npm run terraform:apply:azure
+cd infrastructure/azure
+terraform init
+terraform plan
+terraform apply
 ```
 
 ### **5. AWS Cloud**
 ```bash
-npm run terraform:apply:aws
+cd infrastructure/aws
+terraform init
+terraform plan
+terraform apply
 ```
 
 ## 📚 **Documentation**
 
+- **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - **Professional deployment with Terraform**
 - **[Docker Guide](docs/guides/DOCKER_GUIDE.md)** - Containerization
 - **[Kubernetes Guide](docs/guides/KUBERNETES_GUIDE.md)** - Orchestration
 - **[Terraform Guide](docs/guides/TERRAFORM_GUIDE.md)** - Infrastructure as Code
-- **[Cloud Deployment](docs/guides/CLOUD_DEPLOYMENT_GUIDE.md)** - Multi-cloud deployment
 - **[Testing Guide](docs/guides/TESTING_GUIDE.md)** - Testing strategies
 
 ## 💰 **Cost Optimization**

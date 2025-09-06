@@ -68,9 +68,9 @@ output "eks_node_group_capacity_type" {
 output "ecr_repositories" {
   description = "ECR repository URLs"
   value = {
-    user_service        = aws_ecr_repository.user_service.repository_url
-    product_service     = aws_ecr_repository.product_service.repository_url
-    order_service       = aws_ecr_repository.order_service.repository_url
+    user_service         = aws_ecr_repository.user_service.repository_url
+    product_service      = aws_ecr_repository.product_service.repository_url
+    order_service        = aws_ecr_repository.order_service.repository_url
     notification_service = aws_ecr_repository.notification_service.repository_url
   }
 }
@@ -100,7 +100,7 @@ output "docker_login_command" {
 # Deployment Instructions
 output "deployment_instructions" {
   description = "Instructions for deploying the application"
-  value = <<-EOT
+  value       = <<-EOT
     To deploy your e-commerce platform:
     
     1. Configure kubectl:
@@ -125,7 +125,7 @@ output "deployment_instructions" {
 # Cost Information
 output "cost_optimization_tips" {
   description = "Tips for cost optimization"
-  value = <<-EOT
+  value       = <<-EOT
     Cost Optimization Tips:
     
     1. Use Spot Instances for non-production workloads

@@ -101,7 +101,7 @@ resource "aws_eks_cluster" "ecommerce" {
   version  = var.kubernetes_version
 
   vpc_config {
-    subnet_ids              = aws_subnet.private[*].id
+    subnet_ids              = aws_subnet.public[*].id
     endpoint_private_access = true
     endpoint_public_access  = true
     public_access_cidrs     = ["0.0.0.0/0"]
@@ -130,7 +130,7 @@ resource "aws_eks_node_group" "ecommerce" {
   cluster_name    = aws_eks_cluster.ecommerce.name
   node_group_name = "${var.project_name}-nodes"
   node_role_arn   = aws_iam_role.ecommerce_node.arn
-  subnet_ids      = aws_subnet.private[*].id
+  subnet_ids      = aws_subnet.public[*].id
 
   capacity_type  = "ON_DEMAND"
   instance_types = [var.node_instance_type]
@@ -239,10 +239,10 @@ resource "kubernetes_config_map" "ecommerce_config" {
   }
 
   data = {
-    NODE_ENV                = "production"
-    USER_SERVICE_URL        = "http://user-service:3002"
-    PRODUCT_SERVICE_URL     = "http://product-service:3001"
-    ORDER_SERVICE_URL       = "http://order-service:3003"
+    NODE_ENV                 = "production"
+    USER_SERVICE_URL         = "http://user-service:3002"
+    PRODUCT_SERVICE_URL      = "http://product-service:3001"
+    ORDER_SERVICE_URL        = "http://order-service:3003"
     NOTIFICATION_SERVICE_URL = "http://notification-service:3004"
   }
 }

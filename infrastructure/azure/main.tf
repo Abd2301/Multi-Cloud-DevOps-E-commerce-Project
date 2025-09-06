@@ -81,9 +81,9 @@ resource "azurerm_kubernetes_cluster" "ecommerce" {
   kubernetes_version  = var.kubernetes_version
 
   default_node_pool {
-    name       = "default"
-    node_count = var.node_count
-    vm_size    = var.node_size
+    name           = "default"
+    node_count     = var.node_count
+    vm_size        = var.node_size
     vnet_subnet_id = azurerm_subnet.ecommerce.id
   }
 
@@ -94,6 +94,8 @@ resource "azurerm_kubernetes_cluster" "ecommerce" {
   network_profile {
     network_plugin    = "azure"
     load_balancer_sku = "standard"
+    service_cidr      = "10.1.0.0/16"
+    dns_service_ip    = "10.1.0.10"
   }
 
   tags = {
@@ -138,10 +140,10 @@ resource "kubernetes_config_map" "ecommerce_config" {
   }
 
   data = {
-    NODE_ENV = "production"
-    USER_SERVICE_URL = "http://user-service:3002"
-    PRODUCT_SERVICE_URL = "http://product-service:3001"
-    ORDER_SERVICE_URL = "http://order-service:3003"
+    NODE_ENV                 = "production"
+    USER_SERVICE_URL         = "http://user-service:3002"
+    PRODUCT_SERVICE_URL      = "http://product-service:3001"
+    ORDER_SERVICE_URL        = "http://order-service:3003"
     NOTIFICATION_SERVICE_URL = "http://notification-service:3004"
   }
 }

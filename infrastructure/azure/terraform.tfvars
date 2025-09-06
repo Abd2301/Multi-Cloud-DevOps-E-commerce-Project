@@ -6,17 +6,17 @@ project_name = "ecommerce"
 environment  = "dev"
 
 # Azure Configuration
-location           = "East US"
+location            = "East US"
 resource_group_name = "ecommerce-rg"
 
 # Container Registry Configuration
-acr_name = "ecommerceacr"
+acr_name = "ecommerceacr1757135911"
 
 # Kubernetes Cluster Configuration
-aks_cluster_name    = "ecommerce-aks"
-kubernetes_version  = "1.28"
+aks_cluster_name   = "ecommerce-aks"
+kubernetes_version = "1.30"
 node_count         = 2
-node_size          = "Standard_B2s"  # Free tier compatible
+node_size          = "Standard_B2s" # Free tier compatible
 
 # Application Configuration
 namespace = "ecommerce"

@@ -102,7 +102,7 @@ output "docker_login_command" {
 # Deployment Instructions
 output "deployment_instructions" {
   description = "Instructions for deploying the application"
-  value = <<-EOT
+  value       = <<-EOT
     To deploy your e-commerce platform:
     
     1. Configure kubectl:
