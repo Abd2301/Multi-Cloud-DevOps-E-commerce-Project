@@ -1,5 +1,5 @@
 # AWS Infrastructure for E-commerce Platform
-# This file defines the main AWS resources
+# This file defines the main AWS resources using modules
 
 terraform {
   required_version = ">= 1.0"
@@ -23,75 +23,16 @@ provider "aws" {
 # Data source to get current AWS account
 data "aws_caller_identity" "current" {}
 
-# Create VPC
-resource "aws_vpc" "ecommerce" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+# Create Network using module
+module "network" {
+  source = "./modules/network"
 
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-vpc"
-  })
-}
-
-# Create Internet Gateway
-resource "aws_internet_gateway" "ecommerce" {
-  vpc_id = aws_vpc.ecommerce.id
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-igw"
-  })
-}
-
-# Create Public Subnets
-resource "aws_subnet" "public" {
-  count = length(var.availability_zones)
-
-  vpc_id                  = aws_vpc.ecommerce.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = var.availability_zones[count.index]
-  map_public_ip_on_launch = true
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-public-subnet-${count.index + 1}"
-    Type = "public"
-  })
-}
-
-# Create Private Subnets
-resource "aws_subnet" "private" {
-  count = length(var.availability_zones)
-
-  vpc_id            = aws_vpc.ecommerce.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.availability_zones[count.index]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-private-subnet-${count.index + 1}"
-    Type = "private"
-  })
-}
-
-# Create Route Table for Public Subnets
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.ecommerce.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.ecommerce.id
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-public-rt"
-  })
-}
-
-# Associate Public Subnets with Route Table
-resource "aws_route_table_association" "public" {
-  count = length(aws_subnet.public)
-
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
+  project_name            = var.project_name
+  vpc_cidr               = var.vpc_cidr
+  availability_zones     = var.availability_zones
+  public_subnet_cidrs    = var.public_subnet_cidrs
+  private_subnet_cidrs   = var.private_subnet_cidrs
+  tags                   = var.common_tags
 }
 
 # Create EKS Cluster
@@ -101,7 +42,7 @@ resource "aws_eks_cluster" "ecommerce" {
   version  = var.kubernetes_version
 
   vpc_config {
-    subnet_ids              = aws_subnet.public[*].id
+    subnet_ids              = module.network.public_subnet_ids
     endpoint_private_access = true
     endpoint_public_access  = true
     public_access_cidrs     = ["0.0.0.0/0"]
@@ -130,7 +71,7 @@ resource "aws_eks_node_group" "ecommerce" {
   cluster_name    = aws_eks_cluster.ecommerce.name
   node_group_name = "${var.project_name}-nodes"
   node_role_arn   = aws_iam_role.ecommerce_node.arn
-  subnet_ids      = aws_subnet.public[*].id
+  subnet_ids      = module.network.public_subnet_ids
 
   capacity_type  = "ON_DEMAND"
   instance_types = [var.node_instance_type]
@@ -152,6 +93,29 @@ resource "aws_eks_node_group" "ecommerce" {
   ]
 
   tags = var.common_tags
+}
+
+# Create Monitoring using module
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name     = var.project_name
+  aws_region      = var.aws_region
+  eks_cluster_name = aws_eks_cluster.ecommerce.name
+  admin_email     = var.admin_email
+  tags            = var.common_tags
+}
+
+# Create Secrets using module
+module "secrets" {
+  source = "./modules/secrets"
+
+  project_name                = var.project_name
+  eks_node_role_name         = aws_iam_role.ecommerce_node.name
+  database_connection_string  = var.database_connection_string
+  jwt_secret                 = var.jwt_secret
+  email_config               = var.email_config
+  tags                       = var.common_tags
 }
 
 # Create ECR Repositories

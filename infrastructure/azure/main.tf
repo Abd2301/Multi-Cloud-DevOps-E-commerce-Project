@@ -1,5 +1,5 @@
 # Azure Infrastructure for E-commerce Platform
-# This file defines the main Azure resources
+# This file defines the main Azure resources using modules
 
 terraform {
   required_version = ">= 1.0"
@@ -11,6 +11,10 @@ terraform {
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
     }
   }
 }
@@ -28,11 +32,7 @@ resource "azurerm_resource_group" "ecommerce" {
   name     = var.resource_group_name
   location = var.location
 
-  tags = {
-    Environment = var.environment
-    Project     = "ecommerce-platform"
-    ManagedBy   = "terraform"
-  }
+  tags = var.common_tags
 }
 
 # Create Azure Container Registry
@@ -50,26 +50,16 @@ resource "azurerm_container_registry" "ecommerce" {
   }
 }
 
-# Create Virtual Network
-resource "azurerm_virtual_network" "ecommerce" {
-  name                = "${var.project_name}-vnet"
-  address_space       = ["10.0.0.0/16"]
+# Create Network using module
+module "network" {
+  source = "./modules/network"
+
+  project_name        = var.project_name
   location            = azurerm_resource_group.ecommerce.location
   resource_group_name = azurerm_resource_group.ecommerce.name
-
-  tags = {
-    Environment = var.environment
-    Project     = "ecommerce-platform"
-    ManagedBy   = "terraform"
-  }
-}
-
-# Create Subnet
-resource "azurerm_subnet" "ecommerce" {
-  name                 = "${var.project_name}-subnet"
-  resource_group_name  = azurerm_resource_group.ecommerce.name
-  virtual_network_name = azurerm_virtual_network.ecommerce.name
-  address_prefixes     = ["10.0.1.0/24"]
+  vnet_address_space  = var.vnet_address_space
+  subnets             = var.subnets
+  tags                = var.common_tags
 }
 
 # Create Azure Kubernetes Service
@@ -84,7 +74,7 @@ resource "azurerm_kubernetes_cluster" "ecommerce" {
     name           = "default"
     node_count     = var.node_count
     vm_size        = var.node_size
-    vnet_subnet_id = azurerm_subnet.ecommerce.id
+    vnet_subnet_id = module.network.subnet_ids["aks-subnet"]
   }
 
   identity {
@@ -98,11 +88,7 @@ resource "azurerm_kubernetes_cluster" "ecommerce" {
     dns_service_ip    = "10.1.0.10"
   }
 
-  tags = {
-    Environment = var.environment
-    Project     = "ecommerce-platform"
-    ManagedBy   = "terraform"
-  }
+  tags = var.common_tags
 }
 
 # Grant AKS access to ACR
@@ -110,6 +96,34 @@ resource "azurerm_role_assignment" "aks_acr" {
   scope                = azurerm_container_registry.ecommerce.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_kubernetes_cluster.ecommerce.kubelet_identity[0].object_id
+}
+
+# Create Monitoring using module
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_name        = var.project_name
+  location            = azurerm_resource_group.ecommerce.location
+  resource_group_name = azurerm_resource_group.ecommerce.name
+  aks_cluster_id      = azurerm_kubernetes_cluster.ecommerce.id
+  admin_email         = var.admin_email
+  tags                = var.common_tags
+}
+
+# Create Secrets using module
+module "secrets" {
+  source = "./modules/secrets"
+
+  project_name                   = var.project_name
+  location                       = azurerm_resource_group.ecommerce.location
+  resource_group_name            = azurerm_resource_group.ecommerce.name
+  tenant_id                      = data.azurerm_client_config.current.tenant_id
+  current_user_object_id         = data.azurerm_client_config.current.object_id
+  aks_managed_identity_object_id = azurerm_kubernetes_cluster.ecommerce.kubelet_identity[0].object_id
+  database_connection_string     = var.database_connection_string
+  jwt_secret                     = var.jwt_secret
+  email_config                   = var.email_config
+  tags                           = var.common_tags
 }
 
 # Configure Kubernetes Provider

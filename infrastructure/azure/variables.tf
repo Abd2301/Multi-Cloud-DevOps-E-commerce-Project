@@ -71,11 +71,89 @@ variable "node_size" {
   }
 }
 
+variable "min_node_count" {
+  description = "Minimum number of nodes in the node pool"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.min_node_count >= 1 && var.min_node_count <= 10
+    error_message = "Minimum node count must be between 1 and 10."
+  }
+}
+
+variable "max_node_count" {
+  description = "Maximum number of nodes in the node pool"
+  type        = number
+  default     = 3
+  validation {
+    condition     = var.max_node_count >= 1 && var.max_node_count <= 20
+    error_message = "Maximum node count must be between 1 and 20."
+  }
+}
+
 # Namespace Variables
 variable "namespace" {
   description = "Kubernetes namespace for the application"
   type        = string
   default     = "ecommerce"
+}
+
+# Network Configuration
+variable "vnet_address_space" {
+  description = "Address space for the VNet"
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
+}
+
+variable "subnets" {
+  description = "Map of subnets to create"
+  type = map(object({
+    address_prefix = string
+  }))
+  default = {
+    "aks-subnet" = {
+      address_prefix = "10.0.1.0/24"
+    }
+    "monitoring-subnet" = {
+      address_prefix = "10.0.2.0/24"
+    }
+  }
+}
+
+# Monitoring Configuration
+variable "admin_email" {
+  description = "Admin email for alerts"
+  type        = string
+  default     = "admin@example.com"
+}
+
+# Secrets Configuration
+variable "database_connection_string" {
+  description = "Database connection string"
+  type        = string
+  default     = "mongodb://localhost:27017/ecommerce"
+}
+
+variable "jwt_secret" {
+  description = "JWT secret for authentication"
+  type        = string
+  default     = "your-super-secret-jwt-key-change-in-production"
+}
+
+variable "email_config" {
+  description = "Email configuration"
+  type = object({
+    host     = string
+    port     = number
+    username = string
+    password = string
+  })
+  default = {
+    host     = "smtp.gmail.com"
+    port     = 587
+    username = "your-email@gmail.com"
+    password = "your-app-password"
+  }
 }
 
 # Tags

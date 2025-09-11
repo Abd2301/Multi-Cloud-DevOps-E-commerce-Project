@@ -61,31 +61,48 @@ output "aks_node_count" {
   value       = azurerm_kubernetes_cluster.ecommerce.default_node_pool[0].node_count
 }
 
-# Network Outputs
+# Network Module Outputs
+output "vnet_id" {
+  description = "ID of the virtual network"
+  value       = module.network.vnet_id
+}
+
 output "vnet_name" {
   description = "Name of the virtual network"
-  value       = azurerm_virtual_network.ecommerce.name
+  value       = module.network.vnet_name
 }
 
-output "vnet_address_space" {
-  description = "Address space of the virtual network"
-  value       = azurerm_virtual_network.ecommerce.address_space
-}
-
-output "subnet_name" {
-  description = "Name of the subnet"
-  value       = azurerm_subnet.ecommerce.name
-}
-
-output "subnet_address_prefixes" {
-  description = "Address prefixes of the subnet"
-  value       = azurerm_subnet.ecommerce.address_prefixes
+output "subnet_ids" {
+  description = "Map of subnet names to their IDs"
+  value       = module.network.subnet_ids
 }
 
 # Kubernetes Namespace Output
 output "kubernetes_namespace" {
   description = "Name of the Kubernetes namespace"
   value       = kubernetes_namespace.ecommerce.metadata[0].name
+}
+
+# Monitoring Module Outputs
+output "log_analytics_workspace_id" {
+  description = "ID of the Log Analytics workspace"
+  value       = module.monitoring.log_analytics_workspace_id
+}
+
+output "application_insights_id" {
+  description = "ID of the Application Insights"
+  value       = module.monitoring.application_insights_id
+}
+
+# Secrets Module Outputs
+output "key_vault_id" {
+  description = "ID of the Key Vault"
+  value       = module.secrets.key_vault_id
+}
+
+output "key_vault_uri" {
+  description = "URI of the Key Vault"
+  value       = module.secrets.key_vault_uri
 }
 
 # Connection Information

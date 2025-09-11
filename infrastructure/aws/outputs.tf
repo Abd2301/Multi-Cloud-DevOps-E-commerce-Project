@@ -1,25 +1,25 @@
 # Outputs for AWS Infrastructure
 # This file defines the outputs that will be displayed after successful deployment
 
-# VPC Outputs
+# Network Module Outputs
 output "vpc_id" {
   description = "ID of the VPC"
-  value       = aws_vpc.ecommerce.id
+  value       = module.network.vpc_id
 }
 
 output "vpc_cidr_block" {
   description = "CIDR block of the VPC"
-  value       = aws_vpc.ecommerce.cidr_block
+  value       = module.network.vpc_cidr_block
 }
 
 output "public_subnet_ids" {
   description = "IDs of the public subnets"
-  value       = aws_subnet.public[*].id
+  value       = module.network.public_subnet_ids
 }
 
 output "private_subnet_ids" {
   description = "IDs of the private subnets"
-  value       = aws_subnet.private[*].id
+  value       = module.network.private_subnet_ids
 }
 
 # EKS Cluster Outputs
