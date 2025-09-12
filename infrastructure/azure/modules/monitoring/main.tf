@@ -48,7 +48,7 @@ resource "azurerm_monitor_metric_alert" "high_cpu" {
 
   criteria {
     metric_namespace = "Microsoft.ContainerService/managedClusters"
-    metric_name      = "cpuUsagePercentage"
+    metric_name      = "cpu"
     aggregation      = "Average"
     operator         = "GreaterThan"
     threshold        = 80
@@ -71,7 +71,7 @@ resource "azurerm_monitor_metric_alert" "high_memory" {
 
   criteria {
     metric_namespace = "Microsoft.ContainerService/managedClusters"
-    metric_name      = "memoryUsagePercentage"
+    metric_name      = "memory"
     aggregation      = "Average"
     operator         = "GreaterThan"
     threshold        = 85
