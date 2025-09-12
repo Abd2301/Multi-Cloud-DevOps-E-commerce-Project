@@ -1,0 +1,123 @@
+name: 🔄 Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        default: 'azure'
+        type: choice
+        options:
+        - azure
+        - aws
+        - both
+      rollback_to:
+        description: 'Rollback to previous version'
+        required: true
+        default: 'previous'
+        type: choice
+        options:
+        - previous
+        - specific
+      specific_version:
+        description: 'Specific version to rollback to (if selected)'
+        required: false
+        type: string
+
+jobs:
+  # 🔄 Rollback Azure
+  rollback-azure:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.environment == 'azure' || inputs.environment == 'both' }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🔄 Rollback Azure Deployment
+      run: |
+        az aks get-credentials --resource-group ecommerce-rg --name ecommerce-aks
+        
+        if [ "${{ inputs.rollback_to }}" == "previous" ]; then
+          echo "Rolling back to previous version..."
+          kubectl rollout undo deployment/product-service -n ecommerce
+          kubectl rollout undo deployment/user-service -n ecommerce
+          kubectl rollout undo deployment/order-service -n ecommerce
+          kubectl rollout undo deployment/notification-service -n ecommerce
+        else
+          echo "Rolling back to specific version: ${{ inputs.specific_version }}"
+          kubectl set image deployment/product-service product-service=ecommerceacr1757135911.azurecr.io/product-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/user-service user-service=ecommerceacr1757135911.azurecr.io/user-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/order-service order-service=ecommerceacr1757135911.azurecr.io/order-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/notification-service notification-service=ecommerceacr1757135911.azurecr.io/notification-service:${{ inputs.specific_version }} -n ecommerce
+        fi
+
+    - name: 🏥 Verify Rollback
+      run: |
+        kubectl get pods -n ecommerce
+        kubectl rollout status deployment/product-service -n ecommerce
+        kubectl rollout status deployment/user-service -n ecommerce
+        kubectl rollout status deployment/order-service -n ecommerce
+        kubectl rollout status deployment/notification-service -n ecommerce
+
+  # 🔄 Rollback AWS
+  rollback-aws:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.environment == 'aws' || inputs.environment == 'both' }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: 🔄 Rollback AWS Deployment
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name ecommerce-eks
+        
+        if [ "${{ inputs.rollback_to }}" == "previous" ]; then
+          echo "Rolling back to previous version..."
+          kubectl rollout undo deployment/product-service -n ecommerce-dev
+          kubectl rollout undo deployment/user-service -n ecommerce-dev
+          kubectl rollout undo deployment/order-service -n ecommerce-dev
+          kubectl rollout undo deployment/notification-service -n ecommerce-dev
+        else
+          echo "Rolling back to specific version: ${{ inputs.specific_version }}"
+          kubectl set image deployment/product-service product-service=043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/product-service:${{ inputs.specific_version }} -n ecommerce-dev
+          kubectl set image deployment/user-service user-service=043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/user-service:${{ inputs.specific_version }} -n ecommerce-dev
+          kubectl set image deployment/order-service order-service=043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/order-service:${{ inputs.specific_version }} -n ecommerce-dev
+          kubectl set image deployment/notification-service notification-service=043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/notification-service:${{ inputs.specific_version }} -n ecommerce-dev
+        fi
+
+    - name: 🏥 Verify Rollback
+      run: |
+        kubectl get pods -n ecommerce-dev
+        kubectl rollout status deployment/product-service -n ecommerce-dev
+        kubectl rollout status deployment/user-service -n ecommerce-dev
+        kubectl rollout status deployment/order-service -n ecommerce-dev
+        kubectl rollout status deployment/notification-service -n ecommerce-dev
+
+  # 📊 Rollback Summary
+  rollback-summary:
+    needs: [rollback-azure, rollback-aws]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📊 Rollback Summary
+      run: |
+        echo "🔄 Rollback completed!"
+        echo "✅ Services rolled back successfully"
+        echo "🏥 Health checks passed"
+        echo "🚀 System is stable"

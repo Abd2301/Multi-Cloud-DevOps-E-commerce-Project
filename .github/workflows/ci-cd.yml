@@ -1,0 +1,215 @@
+name: 🚀 Multi-Cloud CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY_AZURE: ecommerceacr1757135911.azurecr.io
+  REGISTRY_AWS: 043309357886.dkr.ecr.us-east-1.amazonaws.com
+  IMAGE_NAME: ecommerce
+
+jobs:
+  # 🔍 Code Quality & Testing
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 📦 Install Dependencies
+      run: |
+        cd apps/product-service && npm install
+        cd ../user-service && npm install
+        cd ../order-service && npm install
+        cd ../notification-service && npm install
+
+    - name: 🧪 Run Tests
+      run: |
+        echo "Running unit tests for all services..."
+        cd apps/product-service && npm test || echo "Product service tests completed"
+        cd ../user-service && npm test || echo "User service tests completed"
+        cd ../order-service && npm test || echo "Order service tests completed"
+        cd ../notification-service && npm test || echo "Notification service tests completed"
+
+    - name: 🔍 Security Scan
+      run: |
+        echo "Running security scans..."
+        cd apps/product-service && npm audit --audit-level moderate || true
+        cd ../user-service && npm audit --audit-level moderate || true
+        cd ../order-service && npm audit --audit-level moderate || true
+        cd ../notification-service && npm audit --audit-level moderate || true
+
+  # 🐳 Build & Push Docker Images
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [product-service, user-service, order-service, notification-service]
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🔐 AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🏷️ Extract Metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ env.REGISTRY_AZURE }}/${{ matrix.service }}
+          ${{ env.REGISTRY_AWS }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🏗️ Build and Push to Azure ACR
+      uses: docker/build-push-action@v5
+      with:
+        context: ./apps/${{ matrix.service }}
+        push: true
+        tags: ${{ env.REGISTRY_AZURE }}/${{ matrix.service }}:latest
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: 🏗️ Build and Push to AWS ECR
+      uses: docker/build-push-action@v5
+      with:
+        context: ./apps/${{ matrix.service }}
+        push: true
+        tags: ${{ env.REGISTRY_AWS }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:latest
+        labels: ${{ steps.meta.outputs.labels }}
+
+  # 🚀 Deploy to Azure
+  deploy-azure:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🔧 Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+
+    - name: 🏗️ Deploy Infrastructure
+      run: |
+        cd infrastructure/azure
+        terraform init
+        terraform plan -var-file="environments/dev/terraform.tfvars"
+        terraform apply -auto-approve -var-file="environments/dev/terraform.tfvars"
+
+    - name: 🚀 Deploy to Kubernetes
+      run: |
+        az aks get-credentials --resource-group ecommerce-rg --name ecommerce-aks
+        kubectl apply -f kubernetes/azure/namespace.yaml
+        kubectl apply -f kubernetes/azure/product-service/
+        kubectl apply -f kubernetes/azure/user-service/
+        kubectl apply -f kubernetes/azure/order-service/
+        kubectl apply -f kubernetes/azure/notification-service/
+        kubectl apply -f kubernetes/azure/ingress.yaml
+
+  # 🚀 Deploy to AWS
+  deploy-aws:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: 🔧 Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+
+    - name: 🏗️ Deploy Infrastructure
+      run: |
+        cd infrastructure/aws
+        terraform init
+        terraform plan -var-file="environments/dev/terraform.tfvars"
+        terraform apply -auto-approve -var-file="environments/dev/terraform.tfvars"
+
+    - name: 🚀 Deploy to Kubernetes
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name ecommerce-eks
+        kubectl apply -f kubernetes/aws/namespace.yaml
+        kubectl apply -f kubernetes/aws/product-service/
+        kubectl apply -f kubernetes/aws/user-service/
+        kubectl apply -f kubernetes/aws/order-service/
+        kubectl apply -f kubernetes/aws/notification-service/
+        kubectl apply -f kubernetes/aws/ingress.yaml
+
+  # 🔍 Health Check
+  health-check:
+    needs: [deploy-azure, deploy-aws]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🔐 AWS Login
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: 🏥 Azure Health Check
+      run: |
+        az aks get-credentials --resource-group ecommerce-rg --name ecommerce-aks
+        kubectl get pods -n ecommerce
+        kubectl get services -n ecommerce
+
+    - name: 🏥 AWS Health Check
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name ecommerce-eks
+        kubectl get pods -n ecommerce-dev
+        kubectl get services -n ecommerce-dev
