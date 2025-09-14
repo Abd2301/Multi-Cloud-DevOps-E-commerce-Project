@@ -239,3 +239,5 @@ docker*
 # Test files
 test-results/
 coverage/
+node_modules/
+apps/*/node_modules/
