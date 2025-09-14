@@ -1,0 +1,9 @@
+{
+  "name": "ecommerce-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for e-commerce microservices",
+  "main": "logger.js",
+  "dependencies": {
+    "winston": "^3.11.0"
+  }
+}

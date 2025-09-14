@@ -112,3 +112,83 @@ resource "aws_sns_topic_subscription" "email" {
   protocol  = "email"
   endpoint  = var.admin_email
 }
+
+# Create CloudWatch Alarm for pod restart count (Free tier)
+resource "aws_cloudwatch_metric_alarm" "pod_restarts" {
+  alarm_name          = "${var.project_name}-pod-restarts"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "pod_restart_count"
+  namespace           = "AWS/EKS"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "5"
+  alarm_description   = "This metric monitors pod restart count"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ClusterName = var.eks_cluster_name
+  }
+
+  tags = var.tags
+}
+
+# Create CloudWatch Alarm for failed requests (Free tier)
+resource "aws_cloudwatch_metric_alarm" "failed_requests" {
+  alarm_name          = "${var.project_name}-failed-requests"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "cluster_failed_request_count"
+  namespace           = "AWS/EKS"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "10"
+  alarm_description   = "This metric monitors failed requests"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ClusterName = var.eks_cluster_name
+  }
+
+  tags = var.tags
+}
+
+# Create CloudWatch Alarm for high response time (Free tier)
+resource "aws_cloudwatch_metric_alarm" "high_response_time" {
+  alarm_name          = "${var.project_name}-high-response-time"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "cluster_request_duration"
+  namespace           = "AWS/EKS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "2000"  # 2 seconds
+  alarm_description   = "This metric monitors response time"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ClusterName = var.eks_cluster_name
+  }
+
+  tags = var.tags
+}
+
+# Create CloudWatch Alarm for node count (Free tier)
+resource "aws_cloudwatch_metric_alarm" "low_node_count" {
+  alarm_name          = "${var.project_name}-low-node-count"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "cluster_node_count"
+  namespace           = "AWS/EKS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "1"
+  alarm_description   = "This metric monitors node count"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ClusterName = var.eks_cluster_name
+  }
+
+  tags = var.tags
+}

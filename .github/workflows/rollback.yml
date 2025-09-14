@@ -52,10 +52,10 @@ jobs:
           kubectl rollout undo deployment/notification-service -n ecommerce
         else
           echo "Rolling back to specific version: ${{ inputs.specific_version }}"
-          kubectl set image deployment/product-service product-service=ecommerceacr1757135911.azurecr.io/product-service:${{ inputs.specific_version }} -n ecommerce
-          kubectl set image deployment/user-service user-service=ecommerceacr1757135911.azurecr.io/user-service:${{ inputs.specific_version }} -n ecommerce
-          kubectl set image deployment/order-service order-service=ecommerceacr1757135911.azurecr.io/order-service:${{ inputs.specific_version }} -n ecommerce
-          kubectl set image deployment/notification-service notification-service=ecommerceacr1757135911.azurecr.io/notification-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/product-service product-service=ecommerceacrdev1757135911.azurecr.io/product-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/user-service user-service=ecommerceacrdev1757135911.azurecr.io/user-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/order-service order-service=ecommerceacrdev1757135911.azurecr.io/order-service:${{ inputs.specific_version }} -n ecommerce
+          kubectl set image deployment/notification-service notification-service=ecommerceacrdev1757135911.azurecr.io/notification-service:${{ inputs.specific_version }} -n ecommerce
         fi
 
     - name: 🏥 Verify Rollback

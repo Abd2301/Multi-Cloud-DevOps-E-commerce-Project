@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: order-service
-        image: ecommerceacr1757135911.azurecr.io/order-service:latest
+        image: ecommerceacrdev1757135911.azurecr.io/ecommerce-order-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3003

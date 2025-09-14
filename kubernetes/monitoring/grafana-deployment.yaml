@@ -1,0 +1,277 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin123"
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_INSTALL_PLUGINS
+          value: "grafana-kubernetes-app"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-dashboards
+          mountPath: /etc/grafana/provisioning/dashboards
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
+      - name: grafana-datasources
+        configMap:
+          name: grafana-datasources
+      - name: grafana-dashboards
+        configMap:
+          name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  dashboard-provider.yaml: |
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /etc/grafana/provisioning/dashboards
+  ecommerce-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Ecommerce Monitoring Dashboard",
+        "tags": ["ecommerce", "microservices"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "HTTP Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])",
+                "legendFormat": "{{job}} - {{method}} {{route}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "yAxes": [
+              {
+                "label": "Requests/sec",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "{{job}} - {{method}} {{route}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "yAxes": [
+              {
+                "label": "Seconds",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Error Rate (5xx)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{status_code=~\"5..\"}[5m])",
+                "legendFormat": "{{job}} - {{method}} {{route}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "yAxes": [
+              {
+                "label": "Errors/sec",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "Active Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "active_connections",
+                "legendFormat": "{{job}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "yAxes": [
+              {
+                "label": "Connections",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Business Metrics - Orders",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(orders_total[5m])",
+                "legendFormat": "{{status}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "yAxes": [
+              {
+                "label": "Orders/sec",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "title": "Business Metrics - Auth Attempts",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(auth_attempts_total[5m])",
+                "legendFormat": "{{type}} - {{status}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "yAxes": [
+              {
+                "label": "Attempts/sec",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Notification Queue Size",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "notification_queue_size",
+                "legendFormat": "Queue Size"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+            "yAxes": [
+              {
+                "label": "Messages",
+                "min": 0
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "title": "Cart Operations",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(cart_operations_total[5m])",
+                "legendFormat": "{{operation}} - {{status}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            "yAxes": [
+              {
+                "label": "Operations/sec",
+                "min": 0
+              }
+            ]
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "5s",
+        "schemaVersion": 16,
+        "version": 1
+      }
+    }
+

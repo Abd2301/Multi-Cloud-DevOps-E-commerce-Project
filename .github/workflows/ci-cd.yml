@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  REGISTRY_AZURE: ecommerceacr1757135911.azurecr.io
+  REGISTRY_AZURE: ecommerceacrdev1757135911.azurecr.io
   REGISTRY_AWS: 043309357886.dkr.ecr.us-east-1.amazonaws.com
   IMAGE_NAME: ecommerce
 
@@ -80,8 +80,8 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: |
-          ${{ env.REGISTRY_AZURE }}/${{ matrix.service }}
-          ${{ env.REGISTRY_AWS }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          ${{ env.REGISTRY_AZURE }}/ecommerce-${{ matrix.service }}
+          ${{ env.REGISTRY_AWS }}/ecommerce-${{ matrix.service }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -93,7 +93,7 @@ jobs:
       with:
         context: ./apps/${{ matrix.service }}
         push: true
-        tags: ${{ env.REGISTRY_AZURE }}/${{ matrix.service }}:latest
+        tags: ${{ env.REGISTRY_AZURE }}/ecommerce-${{ matrix.service }}:latest
         labels: ${{ steps.meta.outputs.labels }}
 
     - name: 🏗️ Build and Push to AWS ECR
@@ -101,7 +101,7 @@ jobs:
       with:
         context: ./apps/${{ matrix.service }}
         push: true
-        tags: ${{ env.REGISTRY_AWS }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:latest
+        tags: ${{ env.REGISTRY_AWS }}/ecommerce-${{ matrix.service }}:latest
         labels: ${{ steps.meta.outputs.labels }}
 
   # 🚀 Deploy to Azure

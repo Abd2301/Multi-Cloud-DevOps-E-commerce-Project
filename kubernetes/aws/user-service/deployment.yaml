@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: 043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce/user-service:latest
+        image: 043309357886.dkr.ecr.us-east-1.amazonaws.com/ecommerce-user-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002

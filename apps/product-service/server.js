@@ -2,15 +2,86 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const client = require('prom-client');
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'product-service' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Prometheus metrics setup
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+const activeConnections = new client.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestsTotal);
+register.registerMetric(activeConnections);
 
 // Middleware - Think of these as security guards and helpers
 app.use(helmet()); // Security headers (like wearing a helmet)
 app.use(cors()); // Allow other services to talk to us
 app.use(morgan('combined')); // Log requests (like a security camera)
 app.use(express.json()); // Parse JSON requests
+
+// Metrics middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  activeConnections.inc();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route ? req.route.path : req.path;
+    
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+    
+    activeConnections.dec();
+  });
+  
+  next();
+});
 
 // Sample product data - In real world, this would come from a database
 const products = [
@@ -57,9 +128,15 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
+
 // Get all products
 app.get('/api/products', (req, res) => {
-  console.log('📦 Someone requested all products');
+  logger.info('Products requested', { count: products.length });
   res.json({
     success: true,
     data: products,
@@ -79,7 +156,7 @@ app.get('/api/products/:id', (req, res) => {
     });
   }
   
-  console.log(`📦 Someone requested product ${productId}: ${product.name}`);
+  logger.info('Product requested', { productId, name: product.name });
   res.json({
     success: true,
     data: product
@@ -93,7 +170,7 @@ app.get('/api/products/category/:category', (req, res) => {
     p.category.toLowerCase() === category
   );
   
-  console.log(`📦 Someone searched for products in category: ${category}`);
+  logger.info('Products searched by category', { category, count: filteredProducts.length });
   res.json({
     success: true,
     data: filteredProducts,
@@ -123,7 +200,7 @@ app.patch('/api/products/:id/stock', (req, res) => {
   }
   
   product.stock = quantity;
-  console.log(`📦 Updated stock for product ${productId} to ${quantity}`);
+  logger.info('Product stock updated', { productId, newStock: quantity, productName: product.name });
   
   res.json({
     success: true,
@@ -151,10 +228,15 @@ app.use((err, req, res, next) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 Product Service running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`📦 Products API: http://localhost:${PORT}/api/products`);
-  console.log(`🔍 Search by category: http://localhost:${PORT}/api/products/category/electronics`);
+  logger.info('Product Service started successfully', { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('Service endpoints available', {
+    health: `http://localhost:${PORT}/health`,
+    products: `http://localhost:${PORT}/api/products`,
+    category: `http://localhost:${PORT}/api/products/category/electronics`
+  });
 });
 
 module.exports = app;

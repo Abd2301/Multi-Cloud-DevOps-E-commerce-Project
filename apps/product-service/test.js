@@ -1,4 +1,4 @@
-// Simple test without supertest to avoid dependency issues
+ // Simple test without supertest to avoid dependency issues
 describe('Product Service API', () => {
   test('Health check should return healthy status', () => {
     const healthResponse = { status: 'healthy', service: 'product-service' };

@@ -6,6 +6,27 @@ const axios = require('axios');
 const Joi = require('joi');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
+const client = require('prom-client');
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'notification-service' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -15,11 +36,74 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3002'
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:3003';
 const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3001';
 
+// Prometheus metrics setup
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+const activeConnections = new client.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+const notificationsTotal = new client.Counter({
+  name: 'notifications_total',
+  help: 'Total number of notifications sent',
+  labelNames: ['type', 'status']
+});
+
+const notificationQueueSize = new client.Gauge({
+  name: 'notification_queue_size',
+  help: 'Current size of notification queue'
+});
+
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestsTotal);
+register.registerMetric(activeConnections);
+register.registerMetric(notificationsTotal);
+register.registerMetric(notificationQueueSize);
+
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
+
+// Metrics middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  activeConnections.inc();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route ? req.route.path : req.path;
+    
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+    
+    activeConnections.dec();
+  });
+  
+  next();
+});
 
 // In-memory storage - In production, this would be a database
 let notifications = [];
@@ -156,7 +240,7 @@ const initializeTemplates = () => {
     variables: ['productName', 'currentStock', 'threshold']
   });
 
-  console.log('📧 Initialized notification templates');
+  logger.info('Notification templates initialized', { templateCount: notificationTemplates.size });
 };
 
 // Health check endpoint
@@ -168,6 +252,19 @@ app.get('/health', (req, res) => {
     queueSize: notificationQueue.length,
     totalNotifications: notifications.length
   });
+});
+
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  try {
+    // Update queue size metric
+    notificationQueueSize.set(notificationQueue.length);
+    
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (ex) {
+    res.status(500).end(ex);
+  }
 });
 
 // Send notification
@@ -235,13 +332,15 @@ app.post('/api/notifications/send', authenticateToken, async (req, res) => {
     if (result.success) {
       notification.status = NOTIFICATION_STATUS.SENT;
       notification.sentAt = new Date().toISOString();
+      notificationsTotal.labels(type, 'sent').inc();
     } else {
       notification.status = NOTIFICATION_STATUS.FAILED;
+      notificationsTotal.labels(type, 'failed').inc();
     }
 
     notifications.push(notification);
 
-    console.log(`📧 Notification sent to user ${userId}: ${type} - ${subject}`);
+    logger.info('Notification sent', { userId, type, subject });
 
     res.json({
       success: true,
@@ -327,17 +426,29 @@ app.post('/api/notifications/send-template', authenticateToken, async (req, res)
   }
 });
 
-// Get user notifications
+// Get user notifications (authenticated)
 app.get('/api/notifications', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const userNotifications = notifications.filter(n => n.userId === userId);
   
-  console.log(`📧 Retrieved ${userNotifications.length} notifications for user ${userId}`);
+  logger.info('User notifications retrieved', { userId, notificationCount: userNotifications.length });
   
   res.json({
     success: true,
     data: userNotifications,
     count: userNotifications.length
+  });
+});
+
+// Get all notifications (public endpoint for testing)
+app.get('/api/notifications/public', (req, res) => {
+  logger.info('Public notifications endpoint accessed', { notificationCount: notifications.length });
+  
+  res.json({
+    success: true,
+    data: notifications,
+    count: notifications.length,
+    message: 'Public endpoint - use /api/notifications with authentication for user-specific notifications'
   });
 });
 
@@ -386,7 +497,7 @@ app.post('/api/notifications/templates', authenticateToken, async (req, res) => 
 
     notificationTemplates.set(name, template);
 
-    console.log(`📧 Created notification template: ${name}`);
+    logger.info('Notification template created', { templateName: name });
 
     res.status(201).json({
       success: true,
@@ -415,7 +526,7 @@ app.post('/api/notifications/events', async (req, res) => {
       });
     }
 
-    console.log(`📧 Processing event: ${eventType} for user ${userId}`);
+    logger.info('Processing notification event', { eventType, userId });
 
     // Process different event types
     switch (eventType) {
@@ -435,7 +546,7 @@ app.post('/api/notifications/events', async (req, res) => {
         await processLowStockEvent(data);
         break;
       default:
-        console.log(`📧 Unknown event type: ${eventType}`);
+        logger.warn('Unknown event type received', { eventType });
     }
 
     res.json({
@@ -479,8 +590,8 @@ app.get('/api/notifications/stats', authenticateToken, (req, res) => {
 async function sendEmail(email, subject, message) {
   try {
     // In production, this would send real emails
-    console.log(`📧 [EMAIL] To: ${email}, Subject: ${subject}`);
-    console.log(`📧 [EMAIL] Message: ${message}`);
+    logger.info('Email notification sent', { email, subject });
+    logger.debug('Email content', { message });
     
     // Simulate email sending
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -494,7 +605,8 @@ async function sendEmail(email, subject, message) {
 async function sendSMS(phone, message) {
   try {
     // In production, this would send real SMS
-    console.log(`📱 [SMS] To: ${phone}, Message: ${message}`);
+    logger.info('SMS notification sent', { phone });
+    logger.debug('SMS content', { message });
     
     // Simulate SMS sending
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -508,7 +620,8 @@ async function sendSMS(phone, message) {
 async function sendPushNotification(userId, title, message) {
   try {
     // In production, this would send real push notifications
-    console.log(`🔔 [PUSH] To: ${userId}, Title: ${title}, Message: ${message}`);
+    logger.info('Push notification sent', { userId, title });
+    logger.debug('Push content', { message });
     
     // Simulate push notification
     await new Promise(resolve => setTimeout(resolve, 30));
@@ -522,7 +635,8 @@ async function sendPushNotification(userId, title, message) {
 async function sendInAppNotification(userId, title, message) {
   try {
     // In production, this would store in database for in-app display
-    console.log(`📱 [IN-APP] To: ${userId}, Title: ${title}, Message: ${message}`);
+    logger.info('In-app notification sent', { userId, title });
+    logger.debug('In-app content', { message });
     
     // Simulate in-app notification
     await new Promise(resolve => setTimeout(resolve, 20));
@@ -544,32 +658,32 @@ async function processUserRegisteredEvent(userId, data) {
   const template = notificationTemplates.get('welcome_email');
   if (template) {
     // Send welcome email
-    console.log(`📧 Sending welcome email to user ${userId}`);
+    logger.info('Sending welcome email', { userId });
   }
 }
 
 async function processOrderCreatedEvent(userId, data) {
-  console.log(`📧 Order created notification for user ${userId}`);
+  logger.info('Processing order created event', { userId });
 }
 
 async function processOrderConfirmedEvent(userId, data) {
   const template = notificationTemplates.get('order_confirmation');
   if (template) {
-    console.log(`📧 Sending order confirmation to user ${userId}`);
+    logger.info('Sending order confirmation', { userId });
   }
 }
 
 async function processOrderShippedEvent(userId, data) {
   const template = notificationTemplates.get('order_shipped');
   if (template) {
-    console.log(`📧 Sending order shipped notification to user ${userId}`);
+    logger.info('Sending order shipped notification', { userId });
   }
 }
 
 async function processLowStockEvent(data) {
   const template = notificationTemplates.get('low_stock_alert');
   if (template) {
-    console.log(`📧 Sending low stock alert for product ${data.productId}`);
+    logger.info('Sending low stock alert', { productId: data.productId });
   }
 }
 
@@ -595,13 +709,21 @@ initializeTemplates();
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 Notification Service running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`📧 Send notification: POST http://localhost:${PORT}/api/notifications/send`);
-  console.log(`📋 Get notifications: GET http://localhost:${PORT}/api/notifications`);
-  console.log(`🔗 Connected to User Service: ${USER_SERVICE_URL}`);
-  console.log(`🔗 Connected to Order Service: ${ORDER_SERVICE_URL}`);
-  console.log(`🔗 Connected to Product Service: ${PRODUCT_SERVICE_URL}`);
+  logger.info('Notification Service started successfully', { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('Service endpoints available', {
+    health: `http://localhost:${PORT}/health`,
+    sendNotification: `POST http://localhost:${PORT}/api/notifications/send`,
+    getNotifications: `GET http://localhost:${PORT}/api/notifications`,
+    getNotificationsPublic: `GET http://localhost:${PORT}/api/notifications/public`
+  });
+  logger.info('Service connections', {
+    userService: USER_SERVICE_URL,
+    orderService: ORDER_SERVICE_URL,
+    productService: PRODUCT_SERVICE_URL
+  });
 });
 
 module.exports = app;

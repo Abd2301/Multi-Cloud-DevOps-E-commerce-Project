@@ -5,16 +5,108 @@ const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Joi = require('joi');
+const client = require('prom-client');
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+
+// Environment validation
+const requiredEnvVars = ['JWT_SECRET'];
+requiredEnvVars.forEach(envVar => {
+  if (!process.env[envVar]) {
+    logger.warn(`Missing environment variable: ${envVar}. Using default value.`);
+  }
+});
+
+// Validate JWT secret strength in production
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'your-super-secret-jwt-key-change-in-production') {
+  logger.error('CRITICAL: Using default JWT secret in production!');
+  process.exit(1);
+}
+
+// Prometheus metrics setup
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+const activeConnections = new client.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+const authAttempts = new client.Counter({
+  name: 'auth_attempts_total',
+  help: 'Total number of authentication attempts',
+  labelNames: ['type', 'status']
+});
+
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestsTotal);
+register.registerMetric(activeConnections);
+register.registerMetric(authAttempts);
 
 // Middleware - Same security guards as Product Service
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
+
+// Metrics middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  activeConnections.inc();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route ? req.route.path : req.path;
+    
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+    
+    activeConnections.dec();
+  });
+  
+  next();
+});
 
 // Sample user data - In real world, this would be in a database
 const users = [
@@ -86,12 +178,26 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (ex) {
+    res.status(500).end(ex);
+  }
+});
+
 // User registration - "Welcome! Let's create your account"
 app.post('/api/users/register', async (req, res) => {
   try {
     // Validate input data
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
+      logger.warn('Registration validation failed', { 
+        error: error.details[0].message,
+        email: req.body.email 
+      });
       return res.status(400).json({
         success: false,
         message: 'Validation error',
@@ -104,6 +210,7 @@ app.post('/api/users/register', async (req, res) => {
     // Check if user already exists
     const existingUser = users.find(u => u.email === email);
     if (existingUser) {
+      authAttempts.labels('register', 'failed').inc();
       return res.status(409).json({
         success: false,
         message: 'User already exists with this email'
@@ -128,7 +235,7 @@ app.post('/api/users/register', async (req, res) => {
 
     users.push(newUser);
 
-    console.log(`👤 New user registered: ${email}`);
+    logger.info('New user registered', { email, userId: user.id });
 
     // Return user without password
     const { password: _, ...userWithoutPassword } = newUser;
@@ -139,7 +246,11 @@ app.post('/api/users/register', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Registration error:', error.message);
+    logger.error('Registration error', { 
+      error: error.message, 
+      stack: error.stack,
+      email: req.body.email 
+    });
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -165,6 +276,7 @@ app.post('/api/users/login', async (req, res) => {
     // Find user by email
     const user = users.find(u => u.email === email);
     if (!user) {
+      authAttempts.labels('login', 'failed').inc();
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -199,7 +311,9 @@ app.post('/api/users/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    console.log(`👤 User logged in: ${email}`);
+    // Track successful login
+    authAttempts.labels('login', 'success').inc();
+    logger.info('User login successful', { email, userId: user.id });
 
     // Return user info and token
     const { password: _, ...userWithoutPassword } = user;
@@ -254,7 +368,7 @@ app.put('/api/users/profile', authenticateToken, (req, res) => {
   if (firstName) users[userIndex].firstName = firstName;
   if (lastName) users[userIndex].lastName = lastName;
 
-  console.log(`👤 User profile updated: ${users[userIndex].email}`);
+  logger.info('User profile updated', { email: users[userIndex].email, userId: users[userIndex].id });
 
   const { password: _, ...userWithoutPassword } = users[userIndex];
   res.json({
@@ -339,12 +453,17 @@ app.use((err, req, res, next) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 User Service running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`👤 Register: POST http://localhost:${PORT}/api/users/register`);
-  console.log(`🔐 Login: POST http://localhost:${PORT}/api/users/login`);
-  console.log(`📋 Profile: GET http://localhost:${PORT}/api/users/profile`);
-  console.log(`🔍 Verify token: POST http://localhost:${PORT}/api/users/verify`);
+  logger.info('User Service started successfully', { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('Service endpoints available', {
+    health: `http://localhost:${PORT}/health`,
+    register: `POST http://localhost:${PORT}/api/users/register`,
+    login: `POST http://localhost:${PORT}/api/users/login`,
+    profile: `GET http://localhost:${PORT}/api/users/profile`,
+    verify: `POST http://localhost:${PORT}/api/users/verify`
+  });
 });
 
 module.exports = app;

@@ -15,10 +15,14 @@ spec:
       labels:
         app: product-service
         tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: product-service
-        image: ecommerceacr1757135911.azurecr.io/product-service:latest
+        image: ecommerceacrdev1757135911.azurecr.io/ecommerce-product-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3001

@@ -5,6 +5,27 @@ const morgan = require('morgan');
 const axios = require('axios');
 const Joi = require('joi');
 const { v4: uuidv4 } = require('uuid');
+const client = require('prom-client');
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'order-service' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -13,11 +34,75 @@ const PORT = process.env.PORT || 3003;
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3002';
 const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3001';
 
+// Prometheus metrics setup
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+const activeConnections = new client.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+const ordersTotal = new client.Counter({
+  name: 'orders_total',
+  help: 'Total number of orders',
+  labelNames: ['status']
+});
+
+const cartOperations = new client.Counter({
+  name: 'cart_operations_total',
+  help: 'Total number of cart operations',
+  labelNames: ['operation', 'status']
+});
+
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestsTotal);
+register.registerMetric(activeConnections);
+register.registerMetric(ordersTotal);
+register.registerMetric(cartOperations);
+
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
+
+// Metrics middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  activeConnections.inc();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route ? req.route.path : req.path;
+    
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+    
+    activeConnections.dec();
+  });
+  
+  next();
+});
 
 // In-memory storage - In production, this would be a database
 let orders = [];
@@ -113,6 +198,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (ex) {
+    res.status(500).end(ex);
+  }
+});
+
 // Test endpoint to clear orders (for testing only)
 if (process.env.NODE_ENV === 'test') {
   app.post('/test/clear-orders', (req, res) => {
@@ -126,7 +221,7 @@ app.get('/api/cart', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const cart = shoppingCarts.get(userId) || { items: [], total: 0 };
 
-  console.log(`🛒 Retrieved cart for user ${userId}: ${cart.items.length} items`);
+  logger.info('Cart retrieved', { userId, itemCount: cart.items.length });
   
   res.json({
     success: true,
@@ -201,7 +296,9 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
     // Save cart
     shoppingCarts.set(userId, cart);
 
-    console.log(`🛒 Added ${quantity}x ${product.name} to cart for user ${userId}`);
+    // Track cart operation
+    cartOperations.labels('add', 'success').inc();
+    logger.info('Item added to cart', { userId, productName: product.name, quantity });
 
     res.json({
       success: true,
@@ -252,7 +349,7 @@ app.delete('/api/cart/items/:productId', authenticateToken, (req, res) => {
   // Recalculate total
   cart.total = cart.items.reduce((sum, item) => sum + item.subtotal, 0);
   
-  console.log(`🛒 Removed ${removedItem.name} from cart for user ${userId}`);
+  logger.info('Item removed from cart', { userId, productName: removedItem.name });
 
   res.json({
     success: true,
@@ -269,7 +366,7 @@ app.delete('/api/cart', authenticateToken, (req, res) => {
   const userId = req.user.id;
   shoppingCarts.delete(userId);
   
-  console.log(`🛒 Cleared cart for user ${userId}`);
+  logger.info('Cart cleared', { userId });
 
   res.json({
     success: true,
@@ -339,6 +436,9 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
+    // Track order creation
+    ordersTotal.labels(ORDER_STATUS.PENDING).inc();
+
     // Simulate payment processing
     const paymentSuccess = await simulatePayment(paymentMethod, total);
     
@@ -353,11 +453,11 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
         });
       }
       
-      console.log(`✅ Order ${order.id} created and confirmed for user ${userId}`);
+      logger.info('Order created and confirmed', { orderId: order.id, userId });
     } else {
       order.status = ORDER_STATUS.CANCELLED;
       order.paymentStatus = PAYMENT_STATUS.FAILED;
-      console.log(`❌ Order ${order.id} failed payment for user ${userId}`);
+      logger.error('Order payment failed', { orderId: order.id, userId });
     }
 
     orders.push(order);
@@ -380,17 +480,29 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's orders
+// Get user's orders (authenticated)
 app.get('/api/orders', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const userOrders = orders.filter(order => order.userId === userId);
   
-  console.log(`📋 Retrieved ${userOrders.length} orders for user ${userId}`);
+  logger.info('User orders retrieved', { userId, orderCount: userOrders.length });
   
   res.json({
     success: true,
     data: userOrders,
     count: userOrders.length
+  });
+});
+
+// Get all orders (public endpoint for testing)
+app.get('/api/orders/public', (req, res) => {
+  logger.info('Public orders endpoint accessed', { orderCount: orders.length });
+  
+  res.json({
+    success: true,
+    data: orders,
+    count: orders.length,
+    message: 'Public endpoint - use /api/orders with authentication for user-specific orders'
   });
 });
 
@@ -439,7 +551,7 @@ app.patch('/api/orders/:orderId/status', authenticateToken, async (req, res) => 
   order.status = status;
   order.updatedAt = new Date().toISOString();
 
-  console.log(`📋 Updated order ${orderId} status to ${status} by admin ${userId}`);
+  logger.info('Order status updated', { orderId, newStatus: status, adminId: userId });
 
   res.json({
     success: true,
@@ -486,12 +598,20 @@ app.use((err, req, res, next) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`🚀 Order Service running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🛒 Cart API: http://localhost:${PORT}/api/cart`);
-  console.log(`📋 Orders API: http://localhost:${PORT}/api/orders`);
-  console.log(`🔗 Connected to User Service: ${USER_SERVICE_URL}`);
-  console.log(`🔗 Connected to Product Service: ${PRODUCT_SERVICE_URL}`);
+  logger.info('Order Service started successfully', { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development'
+  });
+  logger.info('Service endpoints available', {
+    health: `http://localhost:${PORT}/health`,
+    cart: `http://localhost:${PORT}/api/cart`,
+    orders: `http://localhost:${PORT}/api/orders`,
+    ordersPublic: `http://localhost:${PORT}/api/orders/public`
+  });
+  logger.info('Service connections', {
+    userService: USER_SERVICE_URL,
+    productService: PRODUCT_SERVICE_URL
+  });
 });
 
 module.exports = app;
