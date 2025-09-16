@@ -663,7 +663,7 @@ async function processUserRegisteredEvent(userId, data) {
 }
 
 async function processOrderCreatedEvent(userId, data) {
-  logger.info('Processing order created event', { userId });
+  logger.info('Processing order created event', { userId });  
 }
 
 async function processOrderConfirmedEvent(userId, data) {

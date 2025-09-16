@@ -59,6 +59,7 @@ module "network" {
   resource_group_name = azurerm_resource_group.ecommerce.name
   vnet_address_space  = var.vnet_address_space
   subnets             = var.subnets
+  subscription_id     = data.azurerm_client_config.current.subscription_id
   tags                = var.common_tags
 }
 

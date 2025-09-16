@@ -1,19 +1,19 @@
-# 🚀 Deployment Guide: Multi-Cloud E-commerce Platform
+# Deployment Guide: Multi-Cloud DevOps Platform
 
-## 🎯 **Overview**
+## Overview
 
-This guide shows you how to deploy the e-commerce platform using **direct Terraform commands** - the professional way that DevOps engineers actually use in production.
+This guide shows you how to deploy the platform using direct Terraform commands - the professional way that DevOps engineers use in production.
 
-## 🔧 **Prerequisites**
+## Prerequisites
 
-### **Required Tools:**
+### Required Tools
 - **Terraform** 1.0+ installed
 - **Azure CLI** configured with your account
 - **AWS CLI** configured with your account
 - **Docker** for building images
 - **kubectl** for Kubernetes management
 
-### **Verify Installation:**
+### Verify Installation
 ```bash
 # Check Terraform
 terraform version

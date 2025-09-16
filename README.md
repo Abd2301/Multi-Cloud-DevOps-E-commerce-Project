@@ -1,12 +1,12 @@
-# ☁️ Multi-Cloud DevOps Platform
+# Multi-Cloud DevOps Platform
 
-A production-ready, cloud-native platform demonstrating advanced DevOps practices, infrastructure automation, and platform engineering skills across multiple cloud providers.
+A production-ready, cloud-native microservices platform demonstrating advanced DevOps practices, infrastructure automation, and platform engineering across multiple cloud providers.
 
-## 🎯 **Project Overview**
+## Project Overview
 
-This project demonstrates **both Cloud Engineer and DevOps Engineer skills** by building a production-ready, enterprise-grade platform that showcases:
+This project demonstrates both Cloud Engineer and DevOps Engineer skills by building a production-ready, enterprise-grade platform that showcases:
 
-### **☁️ Cloud Engineering Skills**
+### Cloud Engineering Skills
 - **Multi-Cloud Architecture** - Azure + AWS with cross-cloud connectivity
 - **Infrastructure as Code** - Terraform modules for scalable infrastructure
 - **Cloud Networking** - VPCs, subnets, security groups, load balancers
@@ -14,7 +14,7 @@ This project demonstrates **both Cloud Engineer and DevOps Engineer skills** by 
 - **Cost Optimization** - Resource tagging, auto-scaling, spot instances
 - **Cloud Monitoring** - Application Insights, CloudWatch, native cloud tools
 
-### **🔧 DevOps Engineering Skills**
+### DevOps Engineering Skills
 - **Microservices Architecture** - 4 independent services with proper APIs
 - **Containerization** - Docker with multi-stage builds and security
 - **Orchestration** - Kubernetes with production-grade manifests
@@ -22,7 +22,7 @@ This project demonstrates **both Cloud Engineer and DevOps Engineer skills** by 
 - **Monitoring & Observability** - Prometheus + Grafana + ELK Stack
 - **Security** - DevSecOps practices, vulnerability scanning, compliance
 
-## 🏗️ **Platform Architecture**
+## Platform Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -47,29 +47,29 @@ This project demonstrates **both Cloud Engineer and DevOps Engineer skills** by 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 📊 **Platform Features**
+## Platform Features
 
-### **Core Microservices**
-- ✅ **User Service** - Authentication, user management, JWT tokens
-- ✅ **Product Service** - Product catalog, inventory management
-- ✅ **Order Service** - Order processing, shopping cart simulation
-- ✅ **Notification Service** - Multi-channel notifications (email, SMS, push)
+### Core Microservices
+- **User Service** - Authentication, user management, JWT tokens
+- **Product Service** - Product catalog, inventory management
+- **Order Service** - Order processing, shopping cart simulation
+- **Notification Service** - Multi-channel notifications (email, SMS, push)
 
-### **DevOps & Cloud Features**
-- ✅ **Containerization** - Docker with multi-stage builds
-- ✅ **Orchestration** - Kubernetes with production-grade manifests
-- ✅ **Infrastructure as Code** - Terraform for Azure & AWS
-- ✅ **Multi-Cloud** - Azure AKS + AWS EKS deployment
-- ✅ **CI/CD Pipelines** - GitHub Actions with automated deployment
-- ✅ **Monitoring Stack** - Prometheus + Grafana + ELK + Application Insights
-- ✅ **Security** - Non-root containers, RBAC, network policies
-- ✅ **Health Checks** - Liveness and readiness probes
-- ✅ **Auto-scaling** - Horizontal pod autoscaling
-- ✅ **Load Balancing** - Traffic distribution and service discovery
+### DevOps & Cloud Features
+- **Containerization** - Docker with multi-stage builds
+- **Orchestration** - Kubernetes with production-grade manifests
+- **Infrastructure as Code** - Terraform for Azure & AWS
+- **Multi-Cloud** - Azure AKS + AWS EKS deployment
+- **CI/CD Pipelines** - GitHub Actions with automated deployment
+- **Monitoring Stack** - Prometheus + Grafana + ELK + Application Insights
+- **Security** - Non-root containers, RBAC, network policies
+- **Health Checks** - Liveness and readiness probes
+- **Auto-scaling** - Horizontal pod autoscaling
+- **Load Balancing** - Traffic distribution and service discovery
 
-## 🚀 **Quick Start**
+## Quick Start
 
-### **Prerequisites**
+### Prerequisites
 - Node.js 18+
 - Docker & Docker Compose
 - Kubernetes (Minikube/kind)

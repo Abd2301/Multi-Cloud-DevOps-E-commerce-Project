@@ -1,12 +1,12 @@
-# ☁️ **Multi-Cloud DevOps Platform - Project Summary**
+# Multi-Cloud DevOps Platform - Project Summary
 
-## **🎯 Project Overview**
+## Project Overview
 
-This project demonstrates **real-world DevOps and Cloud Engineering skills** by building a production-ready, cloud-native platform using modern DevOps practices and advanced cloud technologies.
+This project demonstrates real-world DevOps and Cloud Engineering skills by building a production-ready, cloud-native platform using modern DevOps practices and advanced cloud technologies.
 
 ---
 
-## **✅ What We've Built (Phase 1 - Complete)**
+## What We've Built (Phase 1 - Complete)
 
 ### **1. Microservices Architecture (4 Services)**
 - **User Service** - Authentication, user management, JWT tokens

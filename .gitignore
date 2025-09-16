@@ -32,8 +32,8 @@ build/Release
 # Dependency directories
 jspm_packages/
 
-# TypeScript v1 declaration files
-typings/
+# TypeScript cache
+*.tsbuildinfo
 
 # Optional npm cache directory
 .npm
@@ -60,9 +60,7 @@ typings/
 .env
 .env.test
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
 
 # parcel-bundler cache
 .cache
@@ -122,6 +120,9 @@ jspm_packages/
 # TypeScript v1 declaration files
 typings/
 
+# TypeScript cache
+*.tsbuildinfo
+
 # Optional npm cache directory
 .npm
 
@@ -146,16 +147,25 @@ typings/
 # dotenv environment variables file
 .env
 .env.test
+.env.local
+.env.production
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
 
-# next.js build output
+# Next.js build output
 .next
 
-# nuxt.js build output
+# Nuxt.js build / generate output
 .nuxt
+dist
+
+# Gatsby files
+.cache/
+# Comment in the public line in if your project uses Gatsby and not Next.js
+# https://nextjs.org/blog/next-9-1#public-directory-support
+# public
 
 # vuepress build output
 .vuepress/dist
@@ -172,10 +182,28 @@ typings/
 # TernJS port file
 .tern-port
 
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+.terraform/
+.terraform.lock.hcl
 
-# OS generated files
+# Kubernetes
+*.kubeconfig
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -184,60 +212,6 @@ typings/
 ehthumbs.db
 Thumbs.db
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Docker
-.dockerignore
-
-# Kubernetes
-*.kubeconfig
-
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
-.terraform.lock.hcl
-*.tfplan
-*.tfplan.*
-*.auto.tfvars
-*.auto.tfvars.json
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-.tfrc
-terraform.rc
-
-# Minikube and other large binaries
-minikube*
-kubectl*
-helm*
-docker*
-*.exe
-*.dmg
-*.pkg
-*.deb
-*.rpm
-
-# Large files that shouldn't be in version control
-*.zip
-*.tar.gz
-*.tar.bz2
-*.7z
-*.rar
-
-# Backup files
-*.bak
-*.backup
-*.old
-
-# Test files
-test-results/
-coverage/
-node_modules/
-apps/*/node_modules/
+# Local development
+local/
+dev/
